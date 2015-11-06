@@ -63,43 +63,15 @@ def rescale(signal, minimum, maximum):
 colors = ['blue', 'red', 'green', 'yellow', 'black']
 
 TS = 0
-number = "scn7"
-#data0 = skimage.io.imread('/home/bbales2/brains/{0}/{0}_BTTX_min.tif'.format(number))
-#data1 = skimage.io.imread('/home/bbales2/brains/{0}/{0}_DTTX_min.tif'.format(number))
-#data2 = skimage.io.imread('/home/bbales2/brains/{0}/{0}_ATTX_min.tif'.format(number))
+number = "scn1"
 #data0 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/Before TTX.gif'.format(number))
 #data1 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/During TTX.gif'.format(number))
-#data2 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/After TTX.gif'.format(number))
-#data0 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/Before TTX.tif'.format(number))
-#data1 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/During TTX.tif'.format(number))
-#data2 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/After TTX.tif'.format(number))
-#data0 = skimage.io.imread_collection('/home/bbales2/brains/raw_images/{0}/PreTTXPNG/*.png'.format(number))
-#data0 = data0.concatenate()
-#data1 = skimage.io.imread_collection('/home/bbales2/brains/raw_images/{0}/TTXPNG/*.png'.format(number))
-#data1 = data1.concatenate()
-#data2 = skimage.io.imread_collection('/home/bbales2/brains/raw_images/{0}/AfterTTXPNG/*.png'.format(number))
-#data2 = data2.concatenate()
-#data0 = skimage.io.imread_collection('/home/bbales2/brains/raw_images/{0}/PreTTXTIF/*.tif'.format(number))
-#data0 = data0.concatenate()
-data1 = skimage.io.imread_collection('/home/bbales2/brains/raw_images/{0}/TTXTIF/*.tif'.format(number))
-data1 = data1.concatenate()
-data2 = skimage.io.imread_collection('/home/bbales2/brains/raw_images/{0}/AfterTTXTIF/*.tif'.format(number))
-data2 = data2.concatenate()
+data2 = skimage.io.imread('After TTX.tif'.format(number))
 
-#data0 = data0[:, 50:, :]
-#data1 = data1[:, 50:, :]
-#data2 = data2[:, 50:, :]
 #data0 = rescale(data0, 0.0, 1.0)
-data1 = rescale(data1, 0.0, 1.0)
+#data1 = rescale(data1, 0.0, 1.0)
 data2 = rescale(data2, 0.0, 1.0)
-#print 'loaded'
-#print 'rescaled'
 #data = numpy.concatenate((data0, data1, data2))
-#data = skimage.io.imread_collection('/home/bbales2/brains/take2/prettx_preprocessed/*.png')
-#data = data.concatenate()
-#data = rescale(data, 0.0, 1.0)
-#print 'rescaled'
-#print data0.shape, data1.shape, data2.shape, data.shape
 #%%
 
 def process_data(data):
@@ -412,114 +384,21 @@ def interpolate_stuff(ims, subgraphs2, ids, reverseIds):
             #plt.plot(ys, xs)
         #print j
     return numpy.array(com), numpy.array(traj), numpy.array(lines)
-
 #%%
-#%%
-#%%
-#%%
-ims, ids, trees, blobLists = process_data(data)
+ims, ids, trees, blobLists = process_data(data2)
 graph, subgraphs = build_subgraphs(blobLists, trees, ids)
 subgraphs2, reverseIds = prune_subgraphs(graph, subgraphs, ids)
 com, traj, lines = interpolate_stuff(ims, subgraphs2, ids, reverseIds)
-#%%
-coms = []
-trajs = []
-linesArray = []
 
-for data in [data1, data2]:#data0,
-    ims, ids, trees, blobLists = process_data(data)
-    graph, subgraphs = build_subgraphs(blobLists, trees, ids)
-    subgraphs2, reverseIds = prune_subgraphs(graph, subgraphs, ids)
-    com, traj, lines = interpolate_stuff(ims, subgraphs2, ids, reverseIds)
-
-    coms.append(com)
-    trajs.append(traj)
-    linesArray.append(lines)
-#%%
-#fileHandle = open('/home/bbales2/brains/{0}/{0}_data'.format(number), 'w')
-fileHandle = open('/home/bbales2/brains/raw_images/{0}/{0}.full.pkl'.format(number), 'w')
-#fileHandle = open('/home/bbales2/brains/100813/100813_data', 'w')
-pickle.dump([com, lines2], fileHandle)
-fileHandle.close()
-#%%
-lines2 = []
 for line in lines:
     xs, ys = zip(*line)
     ys = numpy.array(ys)
-    #ys[90:90 + 146] -= 0.25
-    #ys -= 0.12
-    #lines2.append(zip(xs, ys))
-    #if True:
-
-
-#%%
-for com, lines in zip(coms, linesArray):
-    for line in lines:
-        xs, ys = zip(*line)
-        ys = numpy.array(ys)
-        plt.plot(xs, ys)
-    fig = plt.gcf()
-    fig.set_size_inches(15,15)
-    plt.show()
-    print len(lines)
-    com = numpy.array(com)
-    plt.imshow(ims[5])
-    plt.plot(com[:, 1], com[:, 0], '*')
-    plt.show()
-
-#%%
-#%%
-fileHandle = open('/home/bbales2/brains/raw_images/{0}/{0}.pkl'.format(number), 'w')
-#fileHandle = open('/home/bbales2/brains/100813/100813_data', 'w')
-pickle.dump({ "before" : [coms[0], linesArray[0]], "during" : [coms[1], linesArray[1]], "after" : [coms[2], linesArray[2]]}, fileHandle)
-fileHandle.close()
-#%%
-Bn = 15
-blur = numpy.zeros((Bn, Bn))
-
-blur[Bn / 2, Bn / 2] = 1
-
-blur = scipy.ndimage.filters.gaussian_filter(blur, 2.0)
-
-#for dNumber, (com, traj, lines, data) in enumerate(zip(coms, trajs, linesArray, [data0, data1, data2])):
-if True:
-    dNumber = 2
-    print dNumber, "woop"
-    for t in range(50, 60):#range(len(traj)):
-        miny = max(0, min(traj[t][:, 0]) - 100)
-        maxy = min(data[0].shape[1], max(traj[t][:, 0]) + 100)
-        minx = max(0, min(traj[t][:, 1]) - 100)
-        maxx = min(data[0].shape[1], max(traj[t][:, 1]) + 100)
-
-        print t, miny, maxy, minx, maxx
-        try:
-            for i in range(0, data.shape[0], 1):
-                im = rescale(ims[i], 0.0, 1.0)
-                #fltrd = scipy.ndimage.filters.gaussian_filter(im, 5.0) - scipy.ndimage.filters.gaussian_filter(im, 20.0)
-                #fltrd = rescale(fltrd, 0.0, 1.0)
-                sample = im[miny:maxy, minx:maxx]
-
-                #plt.imshow(sample)
-                #plt.show()
-                #print sample.shape
-                rgb = numpy.array([sample, sample, sample])
-                rgb = numpy.rollaxis(rgb, 0, 3)
-                cy = traj[t][i][0] - miny
-                cx = traj[t][i][1] - minx
-                rgb[cy - Bn / 2 : cy + Bn / 2 + 1, cx - Bn / 2 : cx + Bn / 2 + 1, 0] += blur / max(blur.flatten())
-                rgb = rescale(rgb, 0.0, 1.0)
-
-                try:
-                    os.makedirs("/home/bbales2/brains/{0}/data{1}/traj{2}".format(number, dNumber, t))
-                except:
-                    pass
-
-                skimage.io.imsave("/home/bbales2/brains/{0}/data{1}/traj{2}/out{3}.png".format(number, dNumber, t, i), rgb)
-        except:
-            pass
-        #print rgb.shape
-        #plt.imshow(sample, cmap = plt.cm.gray)
-        #plt.plot(traj[50][i][0] - miny, traj[50][i][1] - minx, 'x')
-        #plt.savefig("/home/bbales2/brains/{0}/test/out-{1}.png".format(number, TS + i))
-        #plt.show()
-        #skimage.io.imsave("/home/bbales2/brains/{0}/test/out-{1}.png".format(number, TS + i), sample)
+    plt.plot(xs, ys)
+fig = plt.gcf()
+fig.set_size_inches(15,15)
+plt.show()
+print len(lines)
+com = numpy.array(com)
+plt.imshow(ims[5])
+plt.plot(com[:, 1], com[:, 0], '*')
+plt.show()
