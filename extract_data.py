@@ -59,11 +59,16 @@ def rescale(signal, minimum, maximum):
 colors = ['blue', 'red', 'green', 'yellow', 'black']
 
 TS = 0
-number = "scn1"
+
+if len(sys.argv) < 2:
+    print "Usage:"
+    print "  python extract_data.py image_file"
+    print "  To produce debug information, that is -- python extract_data.py debug image_file"
 
 #data0 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/Before TTX.gif'.format(number))
 #data1 = skimage.io.imread('/home/bbales2/brains/raw_images/{0}/During TTX.gif'.format(number))
-data2 = skimage.io.imread('After TTX.tif'.format(number))
+filename = sys.argv[1] if len(sys.argv) == 2 else sys.argv[2]
+data2 = skimage.io.imread(filename)
 
 #data0 = rescale(data0, 0.0, 1.0)
 #data1 = rescale(data1, 0.0, 1.0)
@@ -93,7 +98,7 @@ def process_data(data):
         #fig.set_size_inches(7.5, 7.5)
         #plt.show()
 
-        fltrd = scipy.ndimage.filters.gaussian_filter(-im, 2.0) - scipy.ndimage.filters.gaussian_filter(-im, 20.0)
+        fltrd = scipy.ndimage.filters.gaussian_filter(-im, 3.0) - scipy.ndimage.filters.gaussian_filter(-im, 20.0)
         fltrd = rescale(fltrd, 0.0, 1.0)
 
         # This plots the thing we're searching for mins on
@@ -138,7 +143,7 @@ def process_data(data):
         #plt.show()
 
         if t % (T / 20) == 0:
-            print len(xys)
+            #print len(xys)
             print t / float(T) * 100.0
 
     return ims, ids, trees, blobLists
@@ -227,6 +232,8 @@ def interpolate_stuff(ims, subgraphs2, ids, reverseIds):
     #fig = plt.gcf()
     #fig.set_size_inches(15,12)
 
+    detected = []
+
     nodes = {}
     lines = []
     com = []
@@ -234,6 +241,7 @@ def interpolate_stuff(ims, subgraphs2, ids, reverseIds):
     for subgraph in subgraphs2:
         xs = []
         ys = []
+        ts = []
 
         # If we have T images, we need to have identified neurons in at least
         # 8% of those images to believe that they are real
@@ -244,6 +252,7 @@ def interpolate_stuff(ims, subgraphs2, ids, reverseIds):
             cancel = False
             for node in subgraph:
                 t, c = reverseIds[node]
+                ts.append(t)
                 xs.append(c[0])
                 ys.append(c[1])
                 interpolated[t] = c
@@ -255,6 +264,8 @@ def interpolate_stuff(ims, subgraphs2, ids, reverseIds):
 
             if cancel:
                 continue
+
+            detected.append((ts, xs, ys))
 
             interpolatedTimes = sorted(interpolated.keys())
 
@@ -316,12 +327,15 @@ def interpolate_stuff(ims, subgraphs2, ids, reverseIds):
 
             lines.append(interpolated)
 
-    return numpy.array(com), numpy.array(traj), numpy.array(lines)
+    return numpy.array(com), numpy.array(traj), numpy.array(lines), numpy.array(detected)
 #%%
+print "Detecting maximums"
 ims, ids, trees, blobLists = process_data(data2)
+print "Tracking neurons"
 graph, subgraphs = build_subgraphs(blobLists, trees, ids)
 subgraphs2, reverseIds = prune_subgraphs(graph, subgraphs, ids)
-com, traj, lines = interpolate_stuff(ims, subgraphs2, ids, reverseIds)
+print "Interpolating data"
+com, traj, lines, detected = interpolate_stuff(ims, subgraphs2, ids, reverseIds)
 
 for line in lines:
     xs, ys = zip(*line)
@@ -335,3 +349,76 @@ com = numpy.array(com)
 plt.imshow(ims[5])
 plt.plot(com[:, 1], com[:, 0], '*')
 plt.show()
+#%%
+
+if sys.argv[1] != "debug" or len(sys.argv) < 3:
+    exit(0)
+
+Bn = 15
+blur = numpy.zeros((Bn, Bn))
+blur[Bn / 2, Bn / 2] = 15
+blur = scipy.ndimage.filters.gaussian_filter(blur, 2.0)
+
+import tempfile
+
+detectedByTimes = {}
+
+for ts, xs, ys in detected:
+    for t, x, y in zip(ts, xs, ys):
+        if t not in detectedByTimes:
+            detectedByTimes[t] = set()
+
+        detectedByTimes[t].add((x, y))
+
+interpolatedByTimes = []
+for i in range(len(ims)):
+    tmp = set()
+    for j in range(traj.shape[0]):
+        x, y = traj[j, i, :]
+        tmp.add(tuple((int(round(x)), int(round(y)))))
+
+    interpolatedByTimes.append(tmp)
+
+trajectoryDir = tempfile.mkdtemp()
+print "Generating images for debugging trajectory interpolation (red detected, green not detected) in {0}".format(trajectoryDir)
+for i, im in enumerate(ims):
+    imt = numpy.zeros((im.shape[0], im.shape[1], 3))
+
+    imt[:, :, 0] = im
+    imt[:, :, 1] = im
+    imt[:, :, 2] = im
+
+    imt = rescale(imt, 0.0, 1.0)
+
+    # This plots the image with the dots on it
+    for cy, cx in interpolatedByTimes[i]:
+        if (cy, cx) in detectedByTimes[i]:
+            imt[cy - Bn / 2 : cy + Bn / 2 + 1, cx - Bn / 2 : cx + Bn / 2 + 1, 0] += blur
+        else:
+            imt[cy - Bn / 2 : cy + Bn / 2 + 1, cx - Bn / 2 : cx + Bn / 2 + 1, 1] += blur
+
+    imt = rescale(imt, 0.0, 1.0)
+    print "{0}/{1}".format(i, len(ims))
+    skimage.io.imsave(os.path.join(trajectoryDir, '{0}.png'.format(i)), imt)
+#%%
+detectDir = tempfile.mkdtemp()
+print "Generating images for debugging scale detection (red detected) in {0}".format(detectDir)
+for i, (im, xys) in enumerate(zip(ims, blobLists)):
+    imt = numpy.zeros((im.shape[0], im.shape[1], 3))
+
+    imt[:, :, 0] = im
+    imt[:, :, 1] = im
+    imt[:, :, 2] = im
+
+    imt = rescale(imt, 0.0, 1.0)
+
+    # This plots the image with the dots on it
+    for cy, cx in xys:
+        imt[cy - Bn / 2 : cy + Bn / 2 + 1, cx - Bn / 2 : cx + Bn / 2 + 1, 0] += blur
+
+    imt = rescale(imt, 0.0, 1.0)
+    print "{0}/{1}".format(i, len(ims))
+    skimage.io.imsave(os.path.join(detectDir, '{0}.png'.format(i)), imt)
+
+print "Images for debugging trajectory interpolation (red detected, green not detected) generated in {0}".format(trajectoryDir)
+print "Images for debugging scale detection (red detected) generated in {0}".format(detectDir)
